@@ -1,0 +1,5 @@
+recursive-include log2csv *
+recursive-include test *
+recursive-exclude log2csv *.pyc
+recursive-exclude test *.pyc
+include *.py

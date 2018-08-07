@@ -1,0 +1,6 @@
+USERNAME [a-zA-Z0-9]+
+NUMBER [0-9]+
+# This is comment
+T01 %{USERNAME: username} %{NUMBER: number}
+
+T02 %{T01} %{USERNAME: username2}
