@@ -1,6 +1,6 @@
 Log2csv
 =======
-A tool to parse unstructured log files into structured csv, using a grok-like pattern.
+A fast tool to parse unstructured log files into structured csv, using a grok-like pattern.
 
 ```
 log2csv [-p custom_pattern.grok|custom_pattern_dir]  [-o output.csv] -e '%{NUMBER:size} (?P<custom_name>regexpression) (?:content to ignore but match) %{IP: client} %{UserAgent: agent} %{URL: request_url}' nginx.log
@@ -41,6 +41,23 @@ sample.log
 
 log2csv command
 ```
-log2csv -e '%{IP:ip} - - \[%{HTTPDATE:date}\] "%{WORD:http_method} %{URIPATH:path} HTTP/1.1" %{NUMBER:http_status} %{NUMBER:payload_bytes} "-" "%{QS:user_agent}"' sample.log
+log2csv -e '%{IP:ip} - - \[%{HTTPDATE:date}\] "%{WORD:http_method} %{URIPATH:path} HTTP/1.1" %{NUMBER:http_status} %{NUMBER:payload_bytes} "-" "%{DATA:user_agent}"' sample.log
 ```
 
+output csv format
+```
+ip,date,http_method,path,http_status,payload_bytes,user_agent
+77.179.66.156,25/Oct/2016:14:49:33 +0200,GET,/,200,612,"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.59 Safari/537.36"
+77.179.66.156,25/Oct/2016:14:50:44 +0200,GET,/adsasd,404,571,"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.59 Safari/537.36"
+77.179.66.156,07/Dec/2016:10:34:43 +0100,GET,/,200,612,"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36"
+77.179.66.156,07/Dec/2016:10:43:18 +0100,GET,/test,404,571,"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36"
+77.179.66.156,07/Dec/2016:10:43:21 +0100,GET,/test,404,571,"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36"
+77.179.66.156,07/Dec/2016:10:43:23 +0100,GET,/test1,404,571,"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36"
+127.0.0.1,07/Dec/2016:11:04:37 +0100,GET,/test1,404,571,"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36"
+127.0.0.1,07/Dec/2016:11:04:58 +0100,GET,/,304,0,Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:49.0) Gecko/20100101 Firefox/49.0
+127.0.0.1,07/Dec/2016:11:04:59 +0100,GET,/,304,0,Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:49.0) Gecko/20100101 Firefox/49.0
+127.0.0.1,07/Dec/2016:11:05:07 +0100,GET,/taga,404,169,Mozilla/5.0 (Macintosh; Intel Mac OS X 10.12; rv:49.0) Gecko/20100101 Firefox/49.0
+```
+
+## Benchmark
+Tested on Macbook Pro 2 cores 4 threads 8G memroy: 1.8G logs file costs 176s 

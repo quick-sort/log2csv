@@ -5,7 +5,12 @@ import csv
 import sys
 import pkg_resources
 import logging
+import signal
+import threading
+import multiprocessing
 from optparse import OptionParser
+
+BATCH_SIZE=1000000
 
 def expand_pattern(pattern_map, expression):
     regex = re.compile(r'%{\W*(?P<pattern_name>\w+)(?::\W*)?(?P<field_name>\w+)?\W*}')
@@ -47,9 +52,88 @@ def load_patterns_from_file(file_name):
             patterns[tokens[0]] = tokens[1]
     return patterns
 
-
 def get_all_files(dir):
     return [os.path.join(dp, f) for dp, dn, fn in os.walk(dir) for f in fn]
+
+def parse_process(regex, in_q, out_q):
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    while True:
+        if in_q.empty():
+            pass
+        try:
+            lines = in_q.get()
+            if not lines:
+                out_q.put(None)
+                return
+            rows = []
+            for line in lines:
+                m = regex.match(line)
+                if m:
+                    rows.append(m.groupdict())
+            out_q.put(rows)
+        except:
+            pass
+
+def read_thread(inputs, in_q, worker_count):
+    for i in inputs:
+        lines = i.readlines(BATCH_SIZE)
+        while lines:
+            while in_q.full():
+                pass
+            in_q.put(lines)
+            lines = i.readlines(BATCH_SIZE)
+
+    for i in range(worker_count):
+        in_q.put(None)
+
+def write_thread(writer, out_q, worker_count):
+    count = 0
+    while count < worker_count:
+        while out_q.empty():
+            pass
+        rows = out_q.get()
+        if not rows:
+            count += 1
+        else:
+            writer.writerows(rows)
+
+def parallel_process(regex, inputs, writer, worker_count):
+    in_q = multiprocessing.Queue(maxsize=worker_count * 10)
+    out_q = multiprocessing.Queue()
+    workers = []
+    for i in range(worker_count):
+        worker = multiprocessing.Process(target=parse_process, args=(regex, in_q, out_q))
+        worker.start()
+        workers.append(worker)
+
+    def handle_sigint(signal, frame):
+        for worker in workers:
+            worker.terminate()
+            worker.join()
+        sys.exit(1)
+    signal.signal(signal.SIGINT, handle_sigint)
+
+    read_worker = threading.Thread(target = read_thread, args=(inputs, in_q, worker_count))
+    read_worker.start()
+    write_worker = threading.Thread(target = write_thread, args=(writer, out_q, worker_count))
+    write_worker.start()
+
+    read_worker.join()
+    for worker in workers:
+        worker.join()
+    write_worker.join()
+
+def serialize_process(regex, inputs, writer):
+    for i in inputs:
+        lines = i.readlines(BATCH_SIZE * 10)
+        while lines:
+            rows = []
+            for line in lines:
+                m = regex.match(line)
+                if m:
+                    rows.append(m.groupdict())
+            writer.writerows(rows)
+            lines = i.readlines(BATCH_SIZE * 10)
 
 def main():
     parser = OptionParser()
@@ -58,7 +142,7 @@ def main():
     parser.add_option('-o', '--output', dest='output')
     #parser.add_option("-v", "--verbose", action="store_true", dest="verbose")
     #parser.add_option("-q", "--quiet", action="store_false", dest="verbose")
-    options, log_files = parser.parse_args()
+    options, inputs = parser.parse_args()
 
     pattern_files = get_all_files(pkg_resources.resource_filename(__name__, 'patterns'))
     if options.pattern:
@@ -71,28 +155,27 @@ def main():
     expression = options.expression
     regex, fields = expand_pattern(pattern_map, expression)
 
+    CPU = multiprocessing.cpu_count()
 
-    if not options.output:
-        output = sys.stdout
-    else:
-        output = open(options.output, 'w')
-
-    if not log_files:
+    if not inputs:
         inputs = [sys.stdin]
     else:
-        inputs = [open(f, 'r') for f in log_files]
+        for i in range(len(inputs)):
+            inputs[i] = open(inputs[i], 'r')
+
+    output = options.output
+    if not output:
+        output = sys.stdout
+    else:
+        output = open(output, 'w')
 
     try:
         csv_writer = csv.DictWriter(output, fieldnames=fields, lineterminator='\n')
         csv_writer.writeheader()
-        for i in inputs:
-            lines = i.readlines()
-            ms = []
-            for line in lines:
-                m = regex.match(line)
-                if m:
-                    ms.append(m.groupdict())
-            csv_writer.writerows(ms)
+        if CPU == 1:
+            serialize_process(regex, inputs, csv_writer)
+        else:
+            parallel_process(regex, inputs, csv_writer, CPU - 1)
     except:
         pass
     finally:
