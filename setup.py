@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="log2csv",
-    version="0.0.1",
+    version="1.0.0",
     author="Rui Zhou",
     author_email="quicksort@outlook.com",
     description="A tool to parse log files into csv, using a grok-like pattern",
